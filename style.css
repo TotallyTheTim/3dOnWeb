@@ -1,0 +1,15 @@
+body{
+    background: black;
+    color: white;
+}
+#container{
+    width: max-content;
+    height: max-content;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+#container > *{
+
+}

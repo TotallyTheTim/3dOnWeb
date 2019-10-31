@@ -4,6 +4,14 @@ import { DDSLoader } from './loaders/dss.js';
 import { MTLLoader } from './loaders/mtl.js';
 import { OBJLoader } from './loaders/obj.js';
 
+import { EffectComposer } from './effects/effectComposer.js';
+import { RenderPass } from './effects/renderPass.js';
+import { BloomPass } from './effects/bloomPass.js';
+import { UnrealBloomPass } from './effects/unrealBloomPass.js';
+
+let cube;
+let obj;
+let composer;
 var container;
 
 var camera, scene, renderer;
@@ -14,11 +22,30 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 
 
-let name = 'untitled';
+let name = 'myFace';
 
 init();
 animate();
 
+const geometry = new THREE.PlaneGeometry(
+    100,
+    100,
+    22,
+    22
+);
+var material = new THREE.MeshPhongMaterial( {color: 0x333333} );
+cube = new THREE.Mesh( geometry, material );
+cube.position.z -=100;
+// cube.scale.x = 2;
+// cube.scale.y = 2;
+
+geometry.vertices.forEach((geom, index) => {
+    geom.z = Math.random()*50-2.5;
+});
+cube.receiveShadow = true;
+cube.castShadow = true;
+
+scene.add( cube );
 
 function init() {
 
@@ -32,10 +59,10 @@ function init() {
 
     scene = new THREE.Scene();
 
-    var ambientLight = new THREE.AmbientLight( 0xcccccc, 0.4 );
+    var ambientLight = new THREE.AmbientLight( 0xcccccc, .5 );
     scene.add( ambientLight );
 
-    var pointLight = new THREE.PointLight( 0xffffff, 0.8 );
+    var pointLight = new THREE.PointLight( 0xffffff, 0.7 );
     camera.add( pointLight );
     scene.add( camera );
 
@@ -76,6 +103,7 @@ function init() {
                     object.scale.y = 25;
                     object.scale.z = 25;
                     scene.add( object );
+                    obj = object;
 
                 }, onProgress, onError );
 
@@ -87,6 +115,31 @@ function init() {
     renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize( window.innerWidth, window.innerHeight );
     container.appendChild( renderer.domElement );
+    container.id = "container";
+
+
+    var renderScene = new RenderPass( scene, camera );
+    // renderScene.clear=false;
+    renderScene.autoClear=false
+
+    var params = {
+        exposure: .5,
+        bloomStrength: .5,
+        bloomThreshold: .1,
+        bloomRadius: .2
+    };
+
+    var bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
+    bloomPass.threshold = params.bloomThreshold;
+    bloomPass.strength = params.bloomStrength;
+
+    bloomPass.radius = params.bloomRadius;
+
+    const alpha = renderer.getContext().getContextAttributes().alpha;
+
+    composer = new EffectComposer( renderer );
+    composer.addPass( renderScene );
+    composer.addPass( bloomPass );
 
     document.addEventListener( 'mousemove', onDocumentMouseMove, false );
 
@@ -97,7 +150,7 @@ function init() {
 }
 
 function onWindowResize() {
-
+    console.log(obj);
     windowHalfX = window.innerWidth / 2;
     windowHalfY = window.innerHeight / 2;
 
@@ -110,8 +163,8 @@ function onWindowResize() {
 
 function onDocumentMouseMove( event ) {
 
-    mouseX = ( event.clientX - windowHalfX ) / 2;
-    mouseY = ( event.clientY - windowHalfY ) / 2;
+    mouseX = ( event.clientX - windowHalfX ) * 1.5;
+    mouseY = ( event.clientY - windowHalfY ) * 1.5;
 
 }
 
@@ -119,6 +172,15 @@ function onDocumentMouseMove( event ) {
 
 function animate() {
 
+    if (cube) {
+        cube.geometry.vertices.forEach((geom, index) => {
+            geom.z += Math.random() * 5 - 2.5;
+            if (geom.z > 250 || geom.z < 250) {
+                geom.z /= 1.02;
+            }
+        });
+        cube.geometry.verticesNeedUpdate = true;
+    }
     requestAnimationFrame( animate );
     render();
 
@@ -126,11 +188,18 @@ function animate() {
 
 function render() {
 
-    camera.position.x += ( mouseX - camera.position.x ) * .05;
-    camera.position.y += ( - mouseY - camera.position.y ) * .05;
+    camera.position.x += -( mouseX + camera.position.x ) * .5;
+    camera.position.y += -( - mouseY + camera.position.y ) * .5;
+
+    if (obj){
+        obj.rotation.y = mouseX/window.innerWidth*.8;
+        obj.rotation.x = mouseY/window.innerHeight*.8;
+    }
 
     camera.lookAt( scene.position );
 
     renderer.render( scene, camera );
+    renderer.clearDepth();
+    composer.render();
 
 }
